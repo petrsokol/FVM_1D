@@ -1,0 +1,3 @@
+C:/cpp/BP/FVM_1D_02_faceFlux/cmake-build-debug/CMakeFiles/FVM_1D_02_faceFlux.dir
+C:/cpp/BP/FVM_1D_02_faceFlux/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/cpp/BP/FVM_1D_02_faceFlux/cmake-build-debug/CMakeFiles/rebuild_cache.dir
