@@ -220,4 +220,6 @@ int not_main() {
     }
     exportData(path, "hll_1D_ref_2", w, x);
     cout << "final time: " << T << endl;
+
+    return EXIT_SUCCESS;
 }

@@ -10,88 +10,47 @@
 #include "structures/Primitive.h"
 
 const std::string path = R"(C:\Users\petrs\Documents\CTU\BP\Charts\Data)";
-constexpr int GHOST_LAYERS = 1;
-constexpr int KAPPA = 1.4;
 
-constexpr int innerCells = 150;
-constexpr int cells = GHOST_LAYERS + innerCells + GHOST_LAYERS;
-constexpr int firstInner = GHOST_LAYERS;
-constexpr double T = 0.2;
-constexpr double xLowerBound = 0;
-constexpr double xUpperBound = 1.5;
-constexpr double initialConditionBound = 0.7;
-constexpr double dx = (xUpperBound - xLowerBound) / innerCells;
+double computeTimeStep(double CFL, const std::vector<Conservative> &w, double *t, double dx);
+double computeRezi(const std::vector<Conservative> &w, const std::vector<Conservative> &wn, double dt, double dx);
 
-
-double computeTimeStep(double CFL, std::vector<Conservative> w);
-double computeRezi(std::vector<Conservative> w, std::vector<Conservative> wn, double dt);
 double bar(double rho_l, double rho_r, double vl, double vr);
-
 Conservative flux(Conservative w, double q, double p);
 Conservative fluxStar(Conservative w, double q, double S, double SM, double p, double p_star);
 Conservative HLL(Conservative wl, Conservative wr);
-
 Conservative HLLC(Conservative wl, Conservative wr);
 
-void exportData(const std::string& path, const std::string& filename, std::vector<Conservative> w) {
-    std::ofstream output(path + "\\" + filename + ".dat");
-    for (int i = 0; i < innerCells; ++i) {
-        output << w[i].r1 << std::endl;
-    }
-    output.close();
-    std::cout << "Exported successfully" << std::endl;
-}
+void
+exportData(const std::string &path, const std::string &filename, const std::vector<Conservative> &w, double dx);
+
+std::string fileName(bool is_hll, bool second_order, int snapshotCount);
+
+Conservative TVD(int i, const std::vector<Conservative> &w, short sign, double dx);
+Conservative ENO(int i, const std::vector<Conservative> &w);
+
+Conservative minmod(Conservative a, Conservative b);
+double minmod(double a, double b);
+
+double setInitialConditions(const int cells, const int ghostLayers, std::vector<Conservative> &w,
+                            std::vector<Conservative> &wn, const Conservative W_L, const Conservative W_R);
+
+void updateBounds(const std::vector<Conservative> &w, std::vector<Conservative> &wn, bool isSecOrd);
+
+void computeScheme(const std::vector<Conservative> &w, std::vector<Conservative> &wn,
+                   double dt, bool isHLL, bool isSecOrd, double dx);
+
+void exportSnapshot(double t, int *snapshotCount, const std::vector<Conservative> &w,
+                    bool isHLL, bool isSecOrd, double dx);
+
+void runExperiment(int innerCells, bool isHLL, bool isSecOrd);
+
+int getFirstInner(const bool isSecOrd);
 
 int main() {
-    std::vector<Conservative> w(cells);
-    std::vector<Conservative> wn(cells);
-
-    // set initial condition
-    Conservative wl_initial = Conservative(0.445, 0.311, 8.9280);
-    Conservative wr_initial = Conservative(0.5, 0, 1.4275);
-    for (int i = 0; i < cells; ++i) {
-        double x = (i - GHOST_LAYERS) * dx;
-        if (x < initialConditionBound) {
-            w.at(i) = wl_initial;
-        } else {
-            w.at(i) = wr_initial;
-        }
-    }
-    wn = w;
-
-    double t = 0;
-    double rezi = 1;
-    while(t < T) {
-
-        // compute time step
-        double dt = computeTimeStep(0.8, w);
-        t += dt;
-
-        // compute scheme
-        for (int i = 0; i < cells - 1; ++i) {
-            int l = i;
-            int r = i + 1;
-            Conservative wl = w.at(l);
-            Conservative wr = w.at(r);
-            Conservative flux = HLLC(wl, wr);
-
-            wn.at(l) -= dt / dx * flux;
-            wn.at(r) += dt / dx * flux;
-        }
-
-        // update bounds
-        wn.at(0) = w.at(firstInner);
-        wn.at(cells - 1) = w.at(cells - 2);
-
-        // compute rezi
-        rezi = computeRezi(w, wn, dt);
-
-        // update cells
-        w = wn;
-    }
-
-    exportData(path, "hll_1D_alt", w);
-    std::cout << "final time: " << T << std::endl;
+    runExperiment(500, true, false);
+    runExperiment(500, true, true);
+    runExperiment(500, false, false);
+    runExperiment(500, false, true);
 
     return EXIT_SUCCESS;
     /*
@@ -102,7 +61,178 @@ int main() {
      */
 }
 
+void runExperiment(const int innerCells, const bool isHLL, const bool isSecOrd) {
+
+    constexpr int KAPPA = 1.4;
+    constexpr double T = 0.2;
+    constexpr bool IS_TVD = true;
+
+    int ghostLayers = isSecOrd ? 2 : 1;
+    int totalCells = innerCells + 2 * ghostLayers;
+    std::vector<Conservative> w(totalCells);
+    std::vector<Conservative> wn(totalCells);
+
+    // set initial condition
+    Conservative W_L = Conservative(0.445, 0.311, 8.9280);
+    Conservative W_R = Conservative(0.5, 0, 1.4275);
+    double dx = setInitialConditions(innerCells, ghostLayers, w, wn, W_L, W_R);
+
+    double t = 0;
+    double rezi = 1;
+    // int snapshotCount = 0;
+    while(t < T) {
+        double dt = computeTimeStep(0.5, w, &t, dx);
+
+        computeScheme(w, wn, dt, isHLL, isSecOrd, dx);
+
+        updateBounds(w, wn, isSecOrd);
+
+        rezi = computeRezi(w, wn, dt, dx);
+
+        // update totalCells
+        w = wn;
+
+        // exportSnapshot(t, &snapshotCount, w, dx);
+    }
+
+    exportData(path, fileName(isHLL, isSecOrd, 20), w, dx);
+}
+
+//void exportSnapshot(double t, int *snapshotCount, const std::vector<Conservative> &w, const bool isHLL, const bool isSecOrd,
+//               const double dx) {
+//    if (t > (T / 20) * (*snapshotCount)) {
+//        // take snapshot
+//        (*snapshotCount)++;
+//        exportData(path, fileName(isHLL, isSecOrd, *snapshotCount), w, dx);
+//        printf("Taken %d. snapshot at time %f\n", *snapshotCount, t);
+//    }
+//}
+
+void computeScheme(const std::vector<Conservative> &w, std::vector<Conservative> &wn, const double dt, const bool isHLL,
+                   const bool isSecOrd, const double dx)
+{
+    int firstInner = getFirstInner(isSecOrd);
+    for (int i = firstInner; i < firstInner + innerCells; ++i) {
+        Conservative wl;
+        Conservative wr;
+        int l = i - 1;
+        int r = i;
+        if (isSecOrd) {
+            wl = TVD(l, w, 1, dx);
+            wr = TVD(r, w, -1, dx);
+        } else {
+            wl = w.at(l);
+            wr = w.at(r);
+        }
+        Conservative flux = isHLL ? HLL(wl, wr) : HLLC(wl, wr);
+        wn.at(l) -= dt / dx * flux;
+        wn.at(r) += dt / dx * flux;
+    }
+}
+
+int getFirstInner(const bool isSecOrd) {
+    return isSecOrd ? 2 : 1;
+}
+
+void updateBounds(const std::vector<Conservative> &w, std::vector<Conservative> &wn, const bool isSecOrd) {
+    wn.at(0) = w.at(firstInner);
+    wn.at(firstInner + innerCells - 1) = w.at( firstInner + innerCells - 2); // first ghost cell = last inner cell
+    if (isSecOrd) {
+        wn.at(1) = w.at(firstInner);
+        wn.at(firstInner + innerCells - 2) = w.at(firstInner + innerCells - 2); // second ghost cell = last inner cell
+    }
+}
+
+double setInitialConditions(const int innerCells, const int ghostLayers, std::vector<Conservative> &w,
+                            std::vector<Conservative> &wn, const Conservative W_L, const Conservative W_R) {
+
+    constexpr double xLowerBound = 0;
+    constexpr double xUpperBound = 2;
+    constexpr double initialConditionBound = 0.7;
+    double dx = (xUpperBound - xLowerBound) / innerCells;
+    int cells = innerCells + 2 * ghostLayers;
+
+    for (int i = 0; i < cells; ++i) {
+        double x = (i - ghostLayers) * dx;
+        if (x < initialConditionBound) {
+            w.at(i) = W_L;
+        } else {
+            w.at(i) = W_R;
+        }
+    }
+
+    wn = w;
+
+    return dx;
+}
+
+Conservative ENO(int i, const std::vector<Conservative> &w) {
+    Conservative res;
+    Conservative a;
+    return res;
+}
+
+Conservative TVD(int i, const std::vector<Conservative> &w, short sign, const double dx) {
+    Conservative res;
+    Conservative a = (w.at(i + 1) - w.at(i)) / dx;
+    Conservative b = (w.at(i) - w.at(i - 1)) / dx;
+    Conservative sigma_i = minmod(a, b);
+    res = w.at(i) + sign * dx / 2 * sigma_i;
+    return res;
+}
+
+double minmod(double a, double b) {
+    if (a * b <= 0) {
+        return 0;
+    } else if (fabs(a) <= fabs(b)) {
+        return a;
+    } else if (fabs(a) > fabs(b)) {
+        return b;
+    }
+}
+
+Conservative minmod(Conservative a, Conservative b) {
+    Conservative res;
+    res.r1 = minmod(a.r1, b.r1);
+    res.r2 = minmod(a.r2, b.r2);
+    res.r3 = minmod(a.r3, b.r3);
+    return res;
+}
+
+std::string fileName(bool is_hll, bool second_order, int snapshotCount) {
+    std::string scheme = is_hll ? "HLL" : "HLLC";
+    std::string order = second_order == 1 ? "higherOrder" : "firstOrder";
+    std::string slice = std::to_string(snapshotCount);
+    std::string innerCellCount = std::to_string(innerCells);
+    std::string name = order + "_" + scheme + "_" + slice + "_" + innerCellCount;
+    return name;
+}
+
+double computeTimeStep(double CFL, const std::vector<Conservative> &w, double *t, const double dx) {
+    double res = 1e9;
+    Primitive pv{};
+    for (int i = 0; i < cells; ++i) {
+        pv = Primitive::computePV(w.at(i));
+        res = fmin(res, dx / (fabs(pv.u * pv.c)));
+    }
+    *t += res;
+    return res;
+}
+
+double computeRezi(const std::vector<Conservative> &w, const std::vector<Conservative> &wn, double dt, const double dx) {
+    double res = 0;
+    for (int i = 0; i < cells; ++i) {
+        res += pow((wn.at(i).r1 - w.at(i).r1) / dt, 2) * dx;
+    }
+    return log10(sqrt(res));
+}
+
+double bar(double rho_l, double rho_r, double vl, double vr) {
+    return (sqrt(rho_l) * vl + sqrt(rho_r) * vr) / (sqrt(rho_l) + sqrt(rho_r));
+}
+
 Conservative HLLC(Conservative wl, Conservative wr) {
+    Conservative res;
     Primitive pvl = Primitive::computePV(wl);
     Primitive pvr = Primitive::computePV(wr);
 
@@ -130,47 +260,18 @@ Conservative HLLC(Conservative wl, Conservative wr) {
     Conservative wrStar = 1 / (SR - SM) * fluxStar(wr, qr, SR, SM, pvr.p, p_star);
 
     if (SL > 0) {
-        return flux( wl, ql, pvl.p);
+        res = flux( wl, ql, pvl.p);
     } else if (SL <= 0 && 0 < SM) {
-        return flux( wlStar, SM, p_star);
+        res = flux( wlStar, SM, p_star);
     } else if (SM <= 0 && 0 <= SR) {
-        return flux( wrStar, SM, p_star);
+        res = flux( wrStar, SM, p_star);
     } else if (SR < 0) {
-        return flux( wr, qr, pvr.p);
+        res = flux( wr, qr, pvr.p);
     } else {
         std::cout << "Scheme::HLLC: unreachable state \n";
     }
-}
 
-Conservative fluxStar(Conservative w, double q, double S, double SM, double p, double p_star) {
-    Conservative res{};
-
-    res.r1 = w.r1 * (S - q) + 0;
-    res.r2 = w.r2 * (S - q) + (p_star - p);
-    res.r3 = w.r3 * (S - q) + p_star * SM - p * q;
     return res;
-}
-
-double bar(double rho_l, double rho_r, double vl, double vr) {
-    return (sqrt(rho_l) * vl + sqrt(rho_r) * vr) / (sqrt(rho_l) + sqrt(rho_r));
-}
-
-double computeTimeStep(double CFL, std::vector<Conservative> w) {
-    double res = 1e9;
-    Primitive pv{};
-    for (int i = 0; i < cells; ++i) {
-        pv = Primitive::computePV(w.at(i));
-        res = fmin(res, dx / (fabs(pv.u * pv.c)));
-    }
-    return res;
-}
-
-double computeRezi(std::vector<Conservative> w, std::vector<Conservative> wn, double dt) {
-    double res = 0;
-    for (int i = 0; i < cells; ++i) {
-        res += pow((wn.at(i).r1 - w.at(i).r1) / dt, 2) * dx;
-    }
-    return log10(sqrt(res));
 }
 
 Conservative HLL(Conservative wl, Conservative wr) {
@@ -196,10 +297,17 @@ Conservative HLL(Conservative wl, Conservative wr) {
         res = FR;
     } else {
         printf("Error in HLL scheme, SL = %f, SR = %f\n", SL, SR);
-        wl.toString();
-        wr.toString();
-
     }
+
+    return res;
+}
+
+Conservative fluxStar(Conservative w, double q, double S, double SM, double p, double p_star) {
+    Conservative res{};
+
+    res.r1 = w.r1 * (S - q) + 0;
+    res.r2 = w.r2 * (S - q) + (p_star - p);
+    res.r3 = w.r3 * (S - q) + p_star * SM - p * q;
 
     return res;
 }
@@ -212,4 +320,14 @@ Conservative flux(Conservative w, double q, double p) {
     res.r3 = (w.r3 + p) * q;
 
     return res;
+}
+
+void
+exportData(const std::string &path, const std::string &filename, const std::vector<Conservative> &w, const double dx) {
+    std::ofstream output(path + "\\" + filename + ".dat");
+    for (int i = 0; i < innerCells; ++i) {
+        output << i * dx << " " << w[i].r1 << " " << w[i].r2 << " " << w[i].r3 << std::endl;
+    }
+    output.close();
+    std::cout << "Exported successfully" << std::endl;
 }
