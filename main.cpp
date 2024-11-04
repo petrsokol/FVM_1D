@@ -10,7 +10,7 @@ using namespace std;
 const double KAPPA = 1.4;
 double xLowerBound, xUpperBound, dx;
 double t, T, dt;
-int innerCells;
+int innerCellsMain;
 //
 //struct conservative {
 //    double r1, r2, r3;
@@ -28,16 +28,16 @@ void setTimeInterval(double lowerBound, double upperBound) {
 void setSpaceInterval(double lowerBound, double upperBound, int n) {
     xLowerBound = lowerBound;
     xUpperBound = upperBound;
-    innerCells = n;
-    innerCells = innerCells + 2;
-    dx = (xUpperBound - xLowerBound) / innerCells;
+    innerCellsMain= n;
+    innerCellsMain= innerCellsMain+ 2;
+    dx = (xUpperBound - xLowerBound) / innerCellsMain;
 }
 
 void setInitialConditions(vector<double>& v, vector<Conservative>& values, Conservative vL, Conservative vR, double boundary) {
-    for (int i = 0; i < innerCells; ++i) {
+    for (int i = 0; i < innerCellsMain; ++i) {
         v[i] = dx*(i-1);
     }
-    for (int i = 0; i < innerCells; ++i) {
+    for (int i = 0; i < innerCellsMain; ++i) {
         if (v[i] <= boundary) { //pro datový typ double je třeba (v[i] <= boundary+1e-14)
             values[i] = vL;
         } else {
@@ -48,7 +48,7 @@ void setInitialConditions(vector<double>& v, vector<Conservative>& values, Conse
 
 void exportData(const string& path, const string& filename, vector<Conservative> V, vector<double> x) {
     ofstream output(path + "\\" + filename + ".dat");
-    for (int i = 1; i < innerCells; ++i) {
+    for (int i = 1; i < innerCellsMain; ++i) {
         output << x[i] << " " << V[i].r1 << endl;
     }
     output.close();
@@ -57,20 +57,20 @@ void exportData(const string& path, const string& filename, vector<Conservative>
 
 void updateBoundary(vector<Conservative>& W) {
     W[0] = W[1];
-    W[innerCells - 1] = W[innerCells - 2];
+    W[innerCellsMain- 1] = W[innerCellsMain- 2];
 }
 double computeTimeStep(double CFL, vector<Primitive> vars) {
     double timeStep = dx / (abs(vars[1].u) * vars[1].c);
-    for (int i = 2; i < innerCells+1; ++i) {
+    for (int i = 2; i < innerCellsMain+1; ++i) {
         timeStep = min(timeStep, dx / (abs(vars[i].u) * vars[i].c));
     }
     return timeStep * CFL;
 }
 
 vector<Primitive> computePhysicalVariables(vector<Conservative> W) {
-    vector<Primitive> vec(innerCells);
+    vector<Primitive> vec(innerCellsMain);
     double u,p;
-    for (int i = 0; i < innerCells; ++i) {
+    for (int i = 0; i < innerCellsMain; ++i) {
         u = W[i].r2/W[i].r1;
         p = (KAPPA - 1)*(W[i].r3 - 0.5*W[i].r2*u);
 
@@ -86,8 +86,8 @@ vector<Primitive> computePhysicalVariables(vector<Conservative> W) {
 }
 
 vector<Conservative> computeFlux(vector<Primitive> pv) {
-    vector<Conservative> f(innerCells);
-    for (int i = 0; i < innerCells; ++i) {
+    vector<Conservative> f(innerCellsMain);
+    for (int i = 0; i < innerCellsMain; ++i) {
         f[i].r1 = pv[i].rhoU;
         f[i].r2 = pv[i].rhoU * pv[i].u + pv[i].p;
         f[i].r3 = (pv[i].rhoE + pv[i].p) * pv[i].u;
@@ -188,14 +188,14 @@ int not_main() {
     setSpaceInterval(0, 1.5, 150);
     setTimeInterval(0, 0.2);
 
-    vector<Conservative> w(innerCells);
-    vector<Conservative> wN(innerCells);
-    vector<Conservative> f(innerCells);
+    vector<Conservative> w(innerCellsMain);
+    vector<Conservative> wN(innerCellsMain);
+    vector<Conservative> f(innerCellsMain);
 
     Conservative flux{};
 
-    vector<Primitive> PV(innerCells);
-    vector<double> x(innerCells);
+    vector<Primitive> PV(innerCellsMain);
+    vector<double> x(innerCellsMain);
 
     Conservative wL = Conservative(0.445, 0.311, 8.9280);
     Conservative wR = Conservative(0.5, 0, 1.4275);
@@ -209,7 +209,7 @@ int not_main() {
         f = computeFlux(PV);
         wN = w;
 
-        for (int i = 0; i < innerCells - 1; ++i) {
+        for (int i = 0; i < innerCellsMain- 1; ++i) {
             flux = fluxHLL(f, w, PV, i); //buď fluxHLL(...) nebo fluxHLLC(...)
             wN[i] -= dt / dx * flux;
             wN[i+1] += dt / dx * flux;

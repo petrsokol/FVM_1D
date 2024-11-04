@@ -9,27 +9,23 @@
 #include "structures/Conservative.h"
 #include "structures/Primitive.h"
 
+
 const std::string path = R"(C:\Users\petrs\Documents\CTU\BP\Charts\Data)";
 
 double computeTimeStep(double CFL, const std::vector<Conservative> &w, double *t, double dx);
 double computeRezi(const std::vector<Conservative> &w, const std::vector<Conservative> &wn, double dt, double dx);
-
 double bar(double rho_l, double rho_r, double vl, double vr);
 Conservative flux(Conservative w, double q, double p);
 Conservative fluxStar(Conservative w, double q, double S, double SM, double p, double p_star);
 Conservative HLL(Conservative wl, Conservative wr);
 Conservative HLLC(Conservative wl, Conservative wr);
-
-void
-exportData(const std::string &path, const std::string &filename, const std::vector<Conservative> &w, double dx);
-
-std::string fileName(bool is_hll, bool second_order, int snapshotCount);
-
-Conservative TVD(int i, const std::vector<Conservative> &w, short sign, double dx);
-Conservative ENO(int i, const std::vector<Conservative> &w);
-
 Conservative minmod(Conservative a, Conservative b);
 double minmod(double a, double b);
+
+void exportData(const std::string &path, const std::string &filename, const std::vector<Conservative> &w, double dx);
+std::string fileName(bool is_hll, bool second_order, int snapshotCount);
+Conservative TVD(int i, const std::vector<Conservative> &w, short sign, double dx);
+Conservative ENO(int i, const std::vector<Conservative> &w);
 
 double setInitialConditions(const int cells, const int ghostLayers, std::vector<Conservative> &w,
                             std::vector<Conservative> &wn, const Conservative W_L, const Conservative W_R);
@@ -44,13 +40,22 @@ void exportSnapshot(double t, int *snapshotCount, const std::vector<Conservative
 
 void runExperiment(int innerCells, bool isHLL, bool isSecOrd);
 
-int getFirstInner(const bool isSecOrd);
+int firstInner = 1;
+int innerCells = 1000;
+int gl = 1;
+int cells = 500 + 2 * gl;
+
+constexpr double KAPPA = 1.4;
+constexpr double T = 0.2;
+
 
 int main() {
-    runExperiment(500, true, false);
-    runExperiment(500, true, true);
-    runExperiment(500, false, false);
-    runExperiment(500, false, true);
+    runExperiment(innerCells, true, false);
+    runExperiment(innerCells, false, false);
+    gl = 2;
+    firstInner = gl;
+    runExperiment(innerCells, true, true);
+    runExperiment(innerCells, false, true);
 
     return EXIT_SUCCESS;
     /*
@@ -63,11 +68,8 @@ int main() {
 
 void runExperiment(const int innerCells, const bool isHLL, const bool isSecOrd) {
 
-    constexpr int KAPPA = 1.4;
-    constexpr double T = 0.2;
-    constexpr bool IS_TVD = true;
 
-    int ghostLayers = isSecOrd ? 2 : 1;
+    int ghostLayers = 2;
     int totalCells = innerCells + 2 * ghostLayers;
     std::vector<Conservative> w(totalCells);
     std::vector<Conservative> wn(totalCells);
@@ -111,7 +113,6 @@ void runExperiment(const int innerCells, const bool isHLL, const bool isSecOrd) 
 void computeScheme(const std::vector<Conservative> &w, std::vector<Conservative> &wn, const double dt, const bool isHLL,
                    const bool isSecOrd, const double dx)
 {
-    int firstInner = getFirstInner(isSecOrd);
     for (int i = firstInner; i < firstInner + innerCells; ++i) {
         Conservative wl;
         Conservative wr;
@@ -130,11 +131,8 @@ void computeScheme(const std::vector<Conservative> &w, std::vector<Conservative>
     }
 }
 
-int getFirstInner(const bool isSecOrd) {
-    return isSecOrd ? 2 : 1;
-}
-
 void updateBounds(const std::vector<Conservative> &w, std::vector<Conservative> &wn, const bool isSecOrd) {
+    constexpr int ghostLayers = 2;
     wn.at(0) = w.at(firstInner);
     wn.at(firstInner + innerCells - 1) = w.at( firstInner + innerCells - 2); // first ghost cell = last inner cell
     if (isSecOrd) {
@@ -188,6 +186,9 @@ double minmod(double a, double b) {
         return a;
     } else if (fabs(a) > fabs(b)) {
         return b;
+    } else {
+        printf("sus: a: %f, b: %f", a, b);
+        return -1;
     }
 }
 
