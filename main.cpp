@@ -225,7 +225,7 @@ double computeTimeStep (double CFL, const std::vector<Conservative> &w, double *
   double res = 1e9;
   const int cells = (int) w.size();
   for (int i = 0; i < cells; ++i) {
-    Primitive pv = Primitive::computePV(w.at(i));
+    auto pv = Primitive(w.at(i));
     res = fmin(res, dx / (fabs(pv.u * pv.c)));
   }
   res = res * CFL;
@@ -246,8 +246,8 @@ double computeRezi (const std::vector<Conservative> &w, const std::vector<Conser
 Conservative HLLC (Conservative wl, Conservative wr)
 {
   Conservative res;
-  Primitive pvl = Primitive::computePV(wl);
-  Primitive pvr = Primitive::computePV(wr);
+  auto pvl = Primitive(wl);
+  auto pvr = Primitive(wr);
   const double KAPPA = getKappa();
 
   double ql = pvl.u;
@@ -299,8 +299,8 @@ Conservative HLL (Conservative wl, Conservative wr)
   Conservative res{};
 
   /* compute primitive variables */
-  Primitive pvl = Primitive::computePV(wl);
-  Primitive pvr = Primitive::computePV(wr);
+  auto pvl = Primitive(wl);
+  auto pvr = Primitive(wr);
 
   double ql = pvl.u; // normálová rychlost
   double qr = pvr.u; // DP - \tilde u

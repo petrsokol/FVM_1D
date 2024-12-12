@@ -21,8 +21,6 @@ public:
 
   Primitive (Conservative w);
 
-  // Methods
-  static Primitive computePV (Conservative w);
 };
 
 
