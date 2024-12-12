@@ -49,12 +49,6 @@ cmake_ninja_workdir = C$:/cpp/BP/FVM_1D_02_faceFlux/cmake-build-debug/
 
 build cmake_object_order_depends_target_FVM_1D_02_faceFlux: phony || CMakeFiles/FVM_1D_02_faceFlux.dir
 
-build CMakeFiles/FVM_1D_02_faceFlux.dir/main.cpp.obj: CXX_COMPILER__FVM_1D_02_faceFlux_unscanned_Debug C$:/cpp/BP/FVM_1D_02_faceFlux/main.cpp || cmake_object_order_depends_target_FVM_1D_02_faceFlux
-  DEP_FILE = CMakeFiles\FVM_1D_02_faceFlux.dir\main.cpp.obj.d
-  FLAGS = -g -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles\FVM_1D_02_faceFlux.dir
-  OBJECT_FILE_DIR = CMakeFiles\FVM_1D_02_faceFlux.dir
-
 build CMakeFiles/FVM_1D_02_faceFlux.dir/structures/Primitive.cpp.obj: CXX_COMPILER__FVM_1D_02_faceFlux_unscanned_Debug C$:/cpp/BP/FVM_1D_02_faceFlux/structures/Primitive.cpp || cmake_object_order_depends_target_FVM_1D_02_faceFlux
   DEP_FILE = CMakeFiles\FVM_1D_02_faceFlux.dir\structures\Primitive.cpp.obj.d
   FLAGS = -g -fdiagnostics-color=always
@@ -67,8 +61,8 @@ build CMakeFiles/FVM_1D_02_faceFlux.dir/structures/Conservative.cpp.obj: CXX_COM
   OBJECT_DIR = CMakeFiles\FVM_1D_02_faceFlux.dir
   OBJECT_FILE_DIR = CMakeFiles\FVM_1D_02_faceFlux.dir\structures
 
-build CMakeFiles/FVM_1D_02_faceFlux.dir/alt.cpp.obj: CXX_COMPILER__FVM_1D_02_faceFlux_unscanned_Debug C$:/cpp/BP/FVM_1D_02_faceFlux/alt.cpp || cmake_object_order_depends_target_FVM_1D_02_faceFlux
-  DEP_FILE = CMakeFiles\FVM_1D_02_faceFlux.dir\alt.cpp.obj.d
+build CMakeFiles/FVM_1D_02_faceFlux.dir/main.cpp.obj: CXX_COMPILER__FVM_1D_02_faceFlux_unscanned_Debug C$:/cpp/BP/FVM_1D_02_faceFlux/main.cpp || cmake_object_order_depends_target_FVM_1D_02_faceFlux
+  DEP_FILE = CMakeFiles\FVM_1D_02_faceFlux.dir\main.cpp.obj.d
   FLAGS = -g -fdiagnostics-color=always
   OBJECT_DIR = CMakeFiles\FVM_1D_02_faceFlux.dir
   OBJECT_FILE_DIR = CMakeFiles\FVM_1D_02_faceFlux.dir
@@ -81,7 +75,7 @@ build CMakeFiles/FVM_1D_02_faceFlux.dir/alt.cpp.obj: CXX_COMPILER__FVM_1D_02_fac
 #############################################
 # Link the executable FVM_1D_02_faceFlux.exe
 
-build FVM_1D_02_faceFlux.exe: CXX_EXECUTABLE_LINKER__FVM_1D_02_faceFlux_Debug CMakeFiles/FVM_1D_02_faceFlux.dir/main.cpp.obj CMakeFiles/FVM_1D_02_faceFlux.dir/structures/Primitive.cpp.obj CMakeFiles/FVM_1D_02_faceFlux.dir/structures/Conservative.cpp.obj CMakeFiles/FVM_1D_02_faceFlux.dir/alt.cpp.obj
+build FVM_1D_02_faceFlux.exe: CXX_EXECUTABLE_LINKER__FVM_1D_02_faceFlux_Debug CMakeFiles/FVM_1D_02_faceFlux.dir/structures/Primitive.cpp.obj CMakeFiles/FVM_1D_02_faceFlux.dir/structures/Conservative.cpp.obj CMakeFiles/FVM_1D_02_faceFlux.dir/main.cpp.obj
   FLAGS = -g
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\FVM_1D_02_faceFlux.dir

@@ -9,17 +9,20 @@
 #include <iostream>
 #include "Conservative.h"
 
-class Primitive {
+class Primitive
+{
 
 public:
-    double rho, rhoU, rhoE;
-    double u, c, p, h;
+  double rho, rhoU, rhoE;
+  double u, c, p, h;
 
-    // Constructor
-    Primitive() = default;
+  // Constructor
+  Primitive () = default;
 
-    // Methods
-    static Primitive computePV(Conservative w);
+  Primitive (Conservative w);
+
+  // Methods
+  static Primitive computePV (Conservative w);
 };
 
 

@@ -21,4 +21,16 @@ Primitive Primitive::computePV(Conservative w) {
     res.h = (KAPPA * res.p) / (res.rho * (KAPPA - 1));
 
     return res;
-} //kontrolováno - přestos tam měl chybu blbče
+}
+
+// Constructor definition
+Primitive::Primitive(Conservative w)
+{
+  rho = w.r1;
+  rhoU = w.r2;
+  rhoE = w.r3;
+  u = w.r2 / w.r1;
+  p = (KAPPA - 1) * (rhoE - 0.5 * rho * pow(u, 2));
+  c = sqrt((KAPPA*p) / rho);
+  h = (KAPPA * p) / (rho * (KAPPA - 1));
+}
