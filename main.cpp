@@ -9,6 +9,11 @@
 #include "structures/Conservative.h"
 #include "structures/Primitive.h"
 
+/**
+ * solution to problem no. 6 from
+ * https://moodle-vyuka.cvut.cz/course/view.php?id=12877
+ */
+
 
 const std::string path = R"(C:\Users\petrs\Documents\CTU\BP\Charts\Data)";
 
@@ -51,7 +56,7 @@ void updateBounds (const std::vector<Conservative> &w, std::vector<Conservative>
 void computeScheme (const std::vector<Conservative> &w, std::vector<Conservative> &wn,
                     double dt, bool isHLL, bool isSecOrd, double dx);
 
-void runExperiment (int innerCells, bool isHLL, bool isSecOrd);
+void runExperiment (int innerCells, bool isHLL, bool isSecOrd, double T);
 
 /*------------------------------------------------------------*/
 
@@ -59,13 +64,16 @@ int getGhostLayers ();
 
 double getKappa ();
 
+Conservative setWithRhoUP (double rho, double u, double p);
+
 int main ()
 {
   int innerCells = 500;
-  runExperiment(innerCells, true, false);
-  runExperiment(innerCells, false, false);
-  runExperiment(innerCells, true, true);
-  runExperiment(innerCells, false, true);
+  double T = 0.2;
+  runExperiment(innerCells, true, false,  T);
+  runExperiment(innerCells, false, false, T);
+  runExperiment(innerCells, true, true,   T);
+  runExperiment(innerCells, false, true,  T);
 
   // Define the runPythonScript to execute the Python script
   const char *runPythonScript = R"(python "C:\Users\petrs\Documents\CTU\BP\PYTHON-scripts\animateChart.py")";
@@ -87,21 +95,19 @@ int main ()
    */
 }
 
-void runExperiment (const int innerCells, const bool isHLL, const bool isSecOrd)
+void runExperiment (const int innerCells, const bool isHLL, const bool isSecOrd, const double T)
 {
-
-  constexpr double T = 0.3;
+  // declare vectors for two consecutive time steps
   std::vector<Conservative> w(innerCells + 2 * getGhostLayers());
   std::vector<Conservative> wn(innerCells + 2 * getGhostLayers());
 
   // set initial condition
-  Conservative W_L = Conservative(0.445, 0.311, 8.9280);
-  Conservative W_R = Conservative(0.5, 0, 1.4275);
+  Conservative W_L = setWithRhoUP(1, 0, 1);
+  Conservative W_R = setWithRhoUP(0.1, 0, 0.1795);
   double dx = setInitialConditions(w, wn, W_L, W_R, 1);
 
+  // start the process
   double t = 0;
-  // int snapshotCount = 0;
-  double rezi;
   while (t < T) {
     double dt = computeTimeStep(0.4, w, &t, dx);
 
@@ -109,20 +115,24 @@ void runExperiment (const int innerCells, const bool isHLL, const bool isSecOrd)
 
     updateBounds(w, wn);
 
-    rezi = computeRezi(w, wn, dt, dx);
-
-    // update totalCells
+    // update the flux-conservative values for each cell
     w = wn;
-
-    // exportSnapshot(t, &snapshotCount, w, dx);
   }
-  printf("rezi: %f\n", rezi);
+
+  // export data to a external file
   exportData(path, fileName(isHLL, isSecOrd, 20, innerCells), w, dx);
 }
 
-void
-computeScheme (const std::vector<Conservative> &w, std::vector<Conservative> &wn, const double dt, const bool isHLL,
-               const bool isSecOrd, const double dx)
+Conservative setWithRhoUP (const double rho, const double u, const double p)
+{
+  const double KAPPA = getKappa();
+  double rhoU = rho * u;
+  double rhoE = p / (KAPPA - 1) + 0.5 * rho * u * u;
+  return Conservative(rho, rhoU, rhoE);
+}
+
+void computeScheme (const std::vector<Conservative> &w, std::vector<Conservative> &wn,
+                    const double dt, const bool isHLL, const bool isSecOrd, const double dx)
 {
   const int GHOST_LAYERS = getGhostLayers();
   const int firstInner = GHOST_LAYERS;
@@ -182,8 +192,8 @@ void updateBounds (const std::vector<Conservative> &w, std::vector<Conservative>
   }
 }
 
-double setInitialConditions (std::vector<Conservative> &w, std::vector<Conservative> &wn, const Conservative W_L,
-                             const Conservative W_R, const double midBound)
+double setInitialConditions (std::vector<Conservative> &w, std::vector<Conservative> &wn,
+                             const Conservative W_L, const Conservative W_R, const double midBound)
 {
   // returns value of dx;
   constexpr double X_LOWER_BOUND = 0;
@@ -222,7 +232,8 @@ std::string fileName (bool is_hll, bool second_order, int snapshotCount, int inn
 
 double computeTimeStep (double CFL, const std::vector<Conservative> &w, double *t, const double dx)
 {
-  double res = 1e9;
+  // problematic if all initial velocities are zero
+  double res = 1e-4;
   const int cells = (int) w.size();
   for (int i = 0; i < cells; ++i) {
     auto pv = Primitive(w.at(i));
@@ -230,6 +241,7 @@ double computeTimeStep (double CFL, const std::vector<Conservative> &w, double *
   }
   res = res * CFL;
   *t += res;
+//  printf("computeTimeStep: %f\n", res);
   return res;
 }
 
