@@ -44,7 +44,7 @@ double minmod (double a, double b);
 
 void exportData (const std::string &path, const std::string &filename, const std::vector<Conservative> &w, double dx);
 
-std::string fileName (bool is_hll, bool second_order, int snapshotCount, int innerCells);
+std::string fileName (bool is_hll, bool second_order, double endTime, int innerCells);
 
 // implementation
 /*------------------------------------------------------------*/
@@ -68,22 +68,16 @@ Conservative setWithRhoUP (double rho, double u, double p);
 
 int main ()
 {
-  int innerCells = 500;
-  double T = 0.2;
-  runExperiment(innerCells, true, false,  T);
-  runExperiment(innerCells, false, false, T);
-  runExperiment(innerCells, true, true,   T);
-  runExperiment(innerCells, false, true,  T);
+  std::vector<int> cellCounts = {20, 50, 100, 200, 500};
+  std::vector<double> endTimes = {0.1, 0.2};
 
-  // Define the runPythonScript to execute the Python script
-  const char *runPythonScript = R"(python "C:\Users\petrs\Documents\CTU\BP\PYTHON-scripts\animateChart.py")";
-
-  // Check if the system runPythonScript succeeded
-  if (system(runPythonScript) == -1) {
-    printf("Failed to run Python script.\n");
-    return 1;
-  } else {
-    printf("Python script executed successfully.\n");
+  for (const auto & cellCount: cellCounts) {
+    for (const auto & endTime: endTimes) {
+      int innerCells = cellCount;
+      double T = endTime;
+      runExperiment(innerCells, true, false,  T);
+      runExperiment(innerCells, true, true,   T);
+    }
   }
 
   return EXIT_SUCCESS;
@@ -120,7 +114,7 @@ void runExperiment (const int innerCells, const bool isHLL, const bool isSecOrd,
   }
 
   // export data to a external file
-  exportData(path, fileName(isHLL, isSecOrd, 20, innerCells), w, dx);
+  exportData(path, fileName(isHLL, isSecOrd, T, innerCells), w, dx);
 }
 
 Conservative setWithRhoUP (const double rho, const double u, const double p)
@@ -220,13 +214,13 @@ double setInitialConditions (std::vector<Conservative> &w, std::vector<Conservat
 }
 
 
-std::string fileName (bool is_hll, bool second_order, int snapshotCount, int innerCells)
+std::string fileName (bool is_hll, bool second_order, double endTime, int innerCells)
 {
   std::string scheme = is_hll ? "HLL" : "HLLC";
   std::string order = second_order == 1 ? "higherOrder" : "firstOrder";
-  std::string slice = std::to_string(snapshotCount);
+  std::string ms = std::to_string((int) (1000 * endTime));
   std::string innerCellCount = std::to_string(innerCells);
-  std::string name = order + "_" + scheme + "_" + slice + "_" + innerCellCount;
+  std::string name = order + "_" + scheme + "_" + ms + "ms_" + innerCellCount + "cells";
   return name;
 }
 
@@ -357,14 +351,27 @@ Conservative flux (Conservative w, double q, double p)
 
   return res;
 }
-
+/**
+ * data for export:
+ * - x coordinate
+ * - rho
+ * - rhoU
+ * - rhoE
+ * @param filePath
+ * @param fileName
+ * @param w
+ * @param dx
+ */
 void exportData (const std::string &filePath, const std::string &fileName, const std::vector<Conservative> &w,
                  const double dx)
 {
-  std::ofstream output(filePath + "\\" + fileName + ".dat");
+  std::ofstream output(filePath + "\\" + fileName + "_rhoUP" + ".dat");
   const int innerCells = (int) w.size() - 2 * getGhostLayers();
   for (int i = 0; i < innerCells; ++i) {
-    output << i * dx << " " << w[i].r1 << " " << w[i].r2 << " " << w[i].r3 << std::endl;
+    double rho = w[i].r1;
+    double u = w[i].r2 / w[i].r1;
+    double p = (getKappa() - 1) * (w[i].r3 - 0.5 * rho * u * u);
+    output << i * dx << " " << rho << " " << u << " " << p << std::endl;
   }
   output.close();
   std::cout << "Exported successfully" << std::endl;
