@@ -15,13 +15,13 @@
  */
 
 
-const std::string path = R"(C:\Users\petrs\Documents\CTU\BP\Charts\Data)";
+const std::string path = R"(C:\Users\petrs\Documents\CTU7\MKO\mko_sod_problem\data_u)";
 
-// numerical scheme computation
-/*------------------------------------------------------------*/
-double computeTimeStep (double CFL, const std::vector<Conservative> &w, double *t, double dx);
+/*---------------= numerical schemes =--------------------------------------------------------------------------------*/
 
-double computeRezi (const std::vector<Conservative> &w, const std::vector<Conservative> &wn, double dt, double dx);
+double computeTimeStep (double CFL, const std::vector<Conservative> & w, double * t, double dx);
+
+double computeRezi (const std::vector<Conservative> & w, const std::vector<Conservative> & wn, double dt, double dx);
 
 double bar (double rho_l, double rho_r, double vl, double vr);
 
@@ -40,31 +40,34 @@ Conservative minmod (Conservative a, Conservative b);
 
 double minmod (double a, double b);
 
-/*------------------------------------------------------------*/
+/*---------------= data IO =------------------------------------------------------------------------------------------*/
 
-void exportData (const std::string &path, const std::string &filename, const std::vector<Conservative> &w, double dx);
+void
+exportData (const std::string & path, const std::string & filename, const std::vector<Conservative> & w, double dx);
 
 std::string fileName (bool is_hll, bool second_order, double endTime, int innerCells);
 
 // implementation
-/*------------------------------------------------------------*/
-double setInitialConditions (std::vector<Conservative> &w, std::vector<Conservative> &wn, Conservative W_L,
+/*---------------= initial and boundary conditions =------------------------------------------------------------------*/
+double setInitialConditions (std::vector<Conservative> & w, std::vector<Conservative> & wn, Conservative W_L,
                              Conservative W_R, double midBound);
 
-void updateBounds (const std::vector<Conservative> &w, std::vector<Conservative> &wn);
+void updateBounds (const std::vector<Conservative> & w, std::vector<Conservative> & wn);
 
-void computeScheme (const std::vector<Conservative> &w, std::vector<Conservative> &wn,
+void computeScheme (const std::vector<Conservative> & w, std::vector<Conservative> & wn,
                     double dt, bool isHLL, bool isSecOrd, double dx);
 
 void runExperiment (int innerCells, bool isHLL, bool isSecOrd, double T);
 
-/*------------------------------------------------------------*/
+/*---------------= support functions =--------------------------------------------------------------------------------*/
 
 int getGhostLayers ();
 
 double getKappa ();
 
 Conservative setWithRhoUP (double rho, double u, double p);
+
+/*---------------= main =---------------------------------------------------------------------------------------------*/
 
 int main ()
 {
@@ -75,19 +78,15 @@ int main ()
     for (const auto & endTime: endTimes) {
       int innerCells = cellCount;
       double T = endTime;
-      runExperiment(innerCells, true, false,  T);
-      runExperiment(innerCells, true, true,   T);
+      runExperiment(innerCells, true, false, T);
+      runExperiment(innerCells, true, true, T);
     }
   }
 
   return EXIT_SUCCESS;
-  /*
-   * todo
-   *   - automatickej output tak, abych mohl sestavit grafy v různých časových intervalech
-   *   - minmod a tvd rekonstrukce druhýho řádu přesnosti
-   *   - přepínání na libovolnou konfiguraci schématu a řádu přesnosti
-   */
 }
+
+/*================ function implementations ==========================================================================*/
 
 void runExperiment (const int innerCells, const bool isHLL, const bool isSecOrd, const double T)
 {
@@ -98,12 +97,12 @@ void runExperiment (const int innerCells, const bool isHLL, const bool isSecOrd,
   // set initial condition
   Conservative W_L = setWithRhoUP(1, 0, 1);
   Conservative W_R = setWithRhoUP(0.1, 0, 0.1795);
-  double dx = setInitialConditions(w, wn, W_L, W_R, 1);
+  double dx = setInitialConditions(w, wn, W_L, W_R, 0.5);
 
   // start the process
   double t = 0;
   while (t < T) {
-    double dt = computeTimeStep(0.4, w, &t, dx);
+    double dt = computeTimeStep(0.7, w, &t, dx);
 
     computeScheme(w, wn, dt, isHLL, isSecOrd, dx);
 
@@ -125,29 +124,41 @@ Conservative setWithRhoUP (const double rho, const double u, const double p)
   return Conservative(rho, rhoU, rhoE);
 }
 
-void computeScheme (const std::vector<Conservative> &w, std::vector<Conservative> &wn,
+void computeScheme (const std::vector<Conservative> & w, std::vector<Conservative> & wn,
                     const double dt, const bool isHLL, const bool isSecOrd, const double dx)
 {
   const int GHOST_LAYERS = getGhostLayers();
+
+  // set up the for loop with starting and ending indices
   const int firstInner = GHOST_LAYERS;
   const int innerCells = (int) w.size() - 2 * GHOST_LAYERS;
   for (int i = firstInner - 1; i < firstInner + innerCells; ++i) {
+    // create more readable indices
     int l = i;
+    int ll = i - 1;
     int r = i + 1;
+    int rr = i + 2;
     int so = isSecOrd ? 1 : 0;
 
+    // create values for different derivatives to be later compared by the minmod function
     Conservative sigma_l_dopr = (w.at(r) - w.at(l)) / dx;
-    Conservative sigma_l_zpet = (w.at(l) - w.at(l - 1)) / dx;
-    Conservative sigma_r_dopr = (w.at(r + 1) - w.at(r)) / dx;
+    Conservative sigma_l_zpet = (w.at(l) - w.at(ll)) / dx;
+    Conservative sigma_r_dopr = (w.at(rr) - w.at(r)) / dx;
     Conservative sigma_r_zpet = (w.at(r) - w.at(l)) / dx; // = sigma_l_dopr
 
+    // evaluate the minmod function and get proper slopes
+    // parameter so -> second_order, set to zero if first order is computed
     Conservative sigma_l = minmod(sigma_l_dopr, sigma_l_zpet) * so;
     Conservative sigma_r = minmod(sigma_r_dopr, sigma_r_zpet) * so;
 
+    // get values from both sides of the interface, incremented by the derivative
     Conservative wl = w.at(l) + dx / 2 * sigma_l;
     Conservative wr = w.at(r) - dx / 2 * sigma_r;
 
+    // compute the numerical flux with chosen scheme
     Conservative flux = isHLL ? HLL(wl, wr) : HLLC(wl, wr);
+
+    // add the flux values to the new time step
     wn.at(l) -= dt / dx * flux;
     wn.at(r) += dt / dx * flux;
   }
@@ -157,13 +168,10 @@ double minmod (double a, double b)
 {
   if (a * b <= 0) {
     return 0;
-  } else if (fabs(a) <= fabs(b) && a * b > 0) {
+  } else if (fabs(a) <= fabs(b)) {
     return a;
-  } else if (fabs(a) > fabs(b) && a * b > 0) {
+  } else if (fabs(a) > fabs(b)) {
     return b;
-  } else {
-    printf("sus\n");
-    return 0;
   }
 }
 
@@ -176,9 +184,11 @@ Conservative minmod (Conservative a, Conservative b)
   return res;
 }
 
-void updateBounds (const std::vector<Conservative> &w, std::vector<Conservative> &wn)
+void updateBounds (const std::vector<Conservative> & w, std::vector<Conservative> & wn)
 {
   const int cells = (int) w.size();
+
+  // update either one or two layers of ghost cells
   const int limit = getGhostLayers();
   for (int i = 0; i < limit; ++i) {
     wn.at(i) = w.at(limit);
@@ -186,12 +196,11 @@ void updateBounds (const std::vector<Conservative> &w, std::vector<Conservative>
   }
 }
 
-double setInitialConditions (std::vector<Conservative> &w, std::vector<Conservative> &wn,
+double setInitialConditions (std::vector<Conservative> & w, std::vector<Conservative> & wn,
                              const Conservative W_L, const Conservative W_R, const double midBound)
 {
-  // returns value of dx;
   constexpr double X_LOWER_BOUND = 0;
-  constexpr double X_UPPER_BOUND = 2;
+  constexpr double X_UPPER_BOUND = 1;
 
   const int GHOST_LAYERS = getGhostLayers();
   const int innerCells = (int) w.size() - 2 * GHOST_LAYERS;
@@ -224,7 +233,7 @@ std::string fileName (bool is_hll, bool second_order, double endTime, int innerC
   return name;
 }
 
-double computeTimeStep (double CFL, const std::vector<Conservative> &w, double *t, const double dx)
+double computeTimeStep (double CFL, const std::vector<Conservative> & w, double * t, const double dx)
 {
   // problematic if all initial velocities are zero
   double res = 1e-4;
@@ -239,7 +248,8 @@ double computeTimeStep (double CFL, const std::vector<Conservative> &w, double *
   return res;
 }
 
-double computeRezi (const std::vector<Conservative> &w, const std::vector<Conservative> &wn, double dt, const double dx)
+double computeRezi (const std::vector<Conservative> & w, const std::vector<Conservative> & wn,
+                    double dt, const double dx)
 {
   double res = 0;
   const int cells = (int) w.size();
@@ -308,15 +318,19 @@ Conservative HLL (Conservative wl, Conservative wr)
   auto pvl = Primitive(wl);
   auto pvr = Primitive(wr);
 
-  double ql = pvl.u; // normálová rychlost
+  // compute normal velocities for left and right cell
+  double ql = pvl.u;
   double qr = pvr.u; // DP - \tilde u
 
+  // compute rightmost and leftmost wave speeds
   double SL = fmin(ql - pvl.c, qr - pvr.c);
   double SR = fmax(ql + pvl.c, qr + pvr.c);
 
+  // compute numerical fluxes on the left and right side
   Conservative FL = flux(wl, ql, pvl.p);
   Conservative FR = flux(wr, qr, pvr.p);
 
+  // depending on the wave speeds, resulting flux is chosen as one of the following:
   if (SL > 0) {
     res = FL;
   } else if (SL <= 0 && 0 <= SR) {
@@ -324,6 +338,7 @@ Conservative HLL (Conservative wl, Conservative wr)
   } else if (SR < 0) {
     res = FR;
   } else {
+    // debugging log for when res = NaN
     printf("Error in HLL scheme, SL = %f, SR = %f\n", SL, SR);
   }
 
@@ -351,6 +366,7 @@ Conservative flux (Conservative w, double q, double p)
 
   return res;
 }
+
 /**
  * data for export:
  * - x coordinate
@@ -362,12 +378,12 @@ Conservative flux (Conservative w, double q, double p)
  * @param w
  * @param dx
  */
-void exportData (const std::string &filePath, const std::string &fileName, const std::vector<Conservative> &w,
+void exportData (const std::string & filePath, const std::string & fileName, const std::vector<Conservative> & w,
                  const double dx)
 {
   std::ofstream output(filePath + "\\" + fileName + "_rhoUP" + ".dat");
   const int innerCells = (int) w.size() - 2 * getGhostLayers();
-  for (int i = 0; i < innerCells; ++i) {
+  for (int i = 0; i < innerCells + 1; ++i) {
     double rho = w[i].r1;
     double u = w[i].r2 / w[i].r1;
     double p = (getKappa() - 1) * (w[i].r3 - 0.5 * rho * u * u);
